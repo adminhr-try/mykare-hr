@@ -199,10 +199,10 @@ nav{flex:1;padding:12px 10px;display:flex;flex-direction:column;gap:2px}
 .grid{
   flex:1;display:grid;
   grid-template-columns:1fr 1fr;
-  grid-template-rows:minmax(300px,auto) 1fr;
+  grid-template-rows:340px 1fr;
   gap:6px;padding:8px;overflow-y:auto;
 }
-.zone-full{grid-column:1 / -1;min-height:260px;}
+.zone-full{grid-column:1 / -1;min-height:0;}
 .zone{
   background:var(--card);border:1px solid var(--border);border-radius:20px;
   overflow:hidden;display:flex;flex-direction:column;position:relative;
@@ -613,7 +613,6 @@ nav{flex:1;padding:12px 10px;display:flex;flex-direction:column;gap:2px}
           </div>
         </div>
         <div class="zh-right" style="gap:8px;display:flex;align-items:center">
-          <span style="font-size:9px;color:#3a9070;font-family:var(--mono)" id="assetUploadSub">Syncing...</span>
           <div class="zh-dot t"></div>
         </div>
       </div>
@@ -690,7 +689,7 @@ nav{flex:1;padding:12px 10px;display:flex;flex-direction:column;gap:2px}
         </div>
 
         <!-- Bottom action bar -->
-        
+        <div style="display:flex;align-items:center;padding-top:2px;border-top:1px solid rgba(32,168,130,0.2)"><div style="font-size:9px;color:#3a9070;font-family:var(--mono)" id="assetUploadSub">Synced from Google Forms</div></div>
       </div>
     </div>
 
@@ -901,11 +900,6 @@ function getName(r){return col(r,['Name','Employee Name','name','Full Name','EMP
 function getEmpId(r){return col(r,['Emp ID','Employee ID','EmpID','emp_id','ID','EMP ID']);}
 function getDept(r){return col(r,['Department','Dept','department','DEPARTMENT']);}
 function getDesig(r){return col(r,['Designation','Role','Title','designation','DESIGNATION']);}
-function getAssets(r){return col(r,['select Assets','Select asset(s)','Select assets']);}
-function getLaptopSerial(r){return col(r,['Laptop Serial No','Laptop Serial No:','Laptop Serial Number']);}
-function getSIM(r){return col(r,['SIM details Ph No','SIM Details Ph.NO']);}
-function getMobile(r){return col(r,['Mobile Brand /IMEI number','Mobile brand /IMEI no']);}
-function getCPU(r){return col(r,['CPU Serial Number','CPU sl no']);}
 function getDate(r){return col(r,['Date','Assigned Date','date','Assignment Date','DATE']);}
 
 function toast(msg){
@@ -915,11 +909,12 @@ function toast(msg){
 }
 
 /* ── DATE / MONTH ── */
-/* ── APPS SCRIPT AUTO LOAD ── */
+/* ══ APPS SCRIPT AUTO-LOAD ══ */
 var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz8ApVIrF8uUtqGDV-ND7f6yes05lZGkU7XMXH2MEdE8oKW-xA_wx_669i-sWb4lmIE/exec";
 
 function autoLoadAssets(){
   var chip = document.querySelector('.t-chip');
+  if(chip) chip.innerHTML = '<div class="sb-dot" style="width:5px;height:5px"></div> Syncing...';
   fetch(APPS_SCRIPT_URL)
     .then(function(r){ return r.text(); })
     .then(function(txt){
@@ -929,16 +924,31 @@ function autoLoadAssets(){
         var json = JSON.parse(trimmed);
         data = json.data || [];
       } else {
-        data = parseCSV(trimmed);
+        var lines = trimmed.split('\n');
+        if(lines.length > 1){
+          var headers = lines[0].split(',').map(function(h){ return h.trim().replace(/^"|"$/g,''); });
+          data = lines.slice(1).map(function(l){
+            var obj={}, cur='', inQ=false, col=0;
+            for(var i=0;i<l.length;i++){
+              var c=l[i];
+              if(c==='"'){inQ=!inQ;}
+              else if(c===','&&!inQ){obj[headers[col]]=(cur||'').trim();cur='';col++;}
+              else cur+=c;
+            }
+            obj[headers[col]]=(cur||'').trim();
+            return obj;
+          });
+        }
       }
       ALL_ASSETS = data.filter(function(r){
-        return getName(r)!=='—' && getName(r).length>1;
+        var n = r['Employee Name']||r['Name']||'';
+        return n.trim().length > 1;
       });
       renderAssetZone();
-      if(chip) chip.innerHTML = '<div class="sb-dot" style="width:5px;height:5px"></div> LIVE · '+ALL_ASSETS.length+' records';
+      if(chip) chip.innerHTML = '<div class="sb-dot" style="width:5px;height:5px"></div> LIVE SYNC';
     })
     .catch(function(){
-      if(chip) chip.innerHTML = '<div class="sb-dot" style="width:5px;height:5px;background:var(--rose)"></div> Offline';
+      if(chip) chip.innerHTML = '<div class="sb-dot" style="width:5px;height:5px;background:#ef4444"></div> Offline';
     });
 }
 
@@ -1221,35 +1231,29 @@ function openInduction(brand){
 
 /* ── TO-DO ── */
 var TODOS = JSON.parse(localStorage.getItem('mykare_todos') || '[]');
-
-function saveTodos(){
-  localStorage.setItem('mykare_todos', JSON.stringify(TODOS));
-}
-
+function saveTodos(){ localStorage.setItem('mykare_todos', JSON.stringify(TODOS)); }
 function addTodo(){
   var inp = document.getElementById('todoInput');
-  var text = inp ? inp.value.trim() : '';
+  var text = inp.value.trim();
   if(!text) return;
   TODOS.push({id: Date.now(), text: text, done: false});
   inp.value = '';
   saveTodos();
   renderTodos();
+  // Scroll to bottom of list
   var list = document.getElementById('todoList');
-  if(list) setTimeout(function(){ list.scrollTop = list.scrollHeight; }, 50);
+  if(list) list.scrollTop = list.scrollHeight;
 }
-
 function toggleTodo(id){
   TODOS = TODOS.map(function(t){ return t.id===id ? Object.assign({},t,{done:!t.done}) : t; });
   saveTodos();
   renderTodos();
 }
-
 function deleteTodo(id){
   TODOS = TODOS.filter(function(t){ return t.id!==id; });
   saveTodos();
   renderTodos();
 }
-
 function renderTodos(){
   var list = document.getElementById('todoList');
   var count = document.getElementById('todo-count');
@@ -1257,7 +1261,7 @@ function renderTodos(){
   var pending = TODOS.filter(function(t){return !t.done;}).length;
   if(count) count.textContent = pending + ' left';
   list.style.display = 'flex';
-  if(!TODOS.length){ list.innerHTML = ''; return; }
+  if(!TODOS.length){ list.innerHTML=''; return; }
   list.innerHTML = TODOS.map(function(t){
     var bg = t.done ? 'rgba(32,168,130,0.08)' : 'rgba(255,255,255,0.7)';
     var bc = t.done ? '#9ee8cc' : '#b8e8d4';
@@ -1266,10 +1270,10 @@ function renderTodos(){
     var chkBg = t.done ? '#20a882' : 'transparent';
     var chkBc = t.done ? '#20a882' : '#9ee8cc';
     var tick = t.done ? '<svg width="9" height="9" fill="none" stroke="white" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>' : '';
-    return '<div style="display:flex;align-items:center;gap:7px;padding:5px 8px;background:'+bg+';border:1px solid '+bc+';border-radius:7px;margin-bottom:3px">'
+    return '<div style="display:flex;align-items:center;gap:7px;padding:5px 8px;background:'+bg+';border:1px solid '+bc+';border-radius:7px">'
       +'<div onclick="toggleTodo('+t.id+')" style="width:15px;height:15px;border-radius:4px;border:1.5px solid '+chkBc+';background:'+chkBg+';cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">'+tick+'</div>'
       +'<span style="flex:1;font-size:11px;font-weight:500;color:'+tc+';text-decoration:'+td+'">'+t.text+'</span>'
-      +'<div onclick="deleteTodo('+t.id+')" style="cursor:pointer;color:#9ee8cc;font-size:16px;line-height:1;padding:0 2px;flex-shrink:0">×</div>'
+      +'<div onclick="deleteTodo('+t.id+')" style="cursor:pointer;color:#9ee8cc;font-size:14px;opacity:0.6">×</div>'
       +'</div>';
   }).join('');
 }
