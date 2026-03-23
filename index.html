@@ -1821,21 +1821,29 @@ var MYKARE_CONTENT = `
 </div>`;
 
 /* ── TO-DO ── */
-var TODOS = [];
+var TODOS = (function(){
+  try{var s=localStorage.getItem('mk_todos');return s?JSON.parse(s):[];}catch(e){return [];}
+}());
+function saveTodos(){
+  try{localStorage.setItem('mk_todos',JSON.stringify(TODOS));}catch(e){}
+}
 function addTodo(){
   var inp = document.getElementById('todoInput');
   var text = inp.value.trim();
   if(!text) return;
   TODOS.push({id: Date.now(), text: text, done: false});
   inp.value = '';
+  saveTodos();
   renderTodos();
 }
 function toggleTodo(id){
   TODOS = TODOS.map(function(t){ return t.id===id ? {...t, done:!t.done} : t; });
+  saveTodos();
   renderTodos();
 }
 function deleteTodo(id){
   TODOS = TODOS.filter(function(t){ return t.id!==id; });
+  saveTodos();
   renderTodos();
 }
 function renderTodos(){
@@ -2002,6 +2010,8 @@ function filterAttTable(){
   setInterval(syncFromForms, 5 * 60 * 1000);
   // Seed one empty asset field in form
   addAssetField();
+  // Restore persisted todos
+  renderTodos();
 })();
 </script>
 </body>
