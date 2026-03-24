@@ -717,7 +717,7 @@ nav{flex:1;padding:12px 10px;display:flex;flex-direction:column;gap:2px}
           </div>
           <div style="display:flex;align-items:center;gap:6px">
             <button onclick="openSheetSettings()" style="display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:6px;background:rgba(56,189,248,0.1);border:1px solid rgba(56,189,248,0.3);color:#38bdf8;font-size:9px;font-weight:700;font-family:var(--mono);cursor:pointer;transition:all 0.2s" onmouseover="this.style.background='rgba(56,189,248,0.2)'" onmouseout="this.style.background='rgba(56,189,248,0.1)'">🔗 Connect Sheet</button>
-            <button onclick="clearAllAssets()" style="display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:6px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:#ef4444;font-size:9px;font-weight:700;font-family:var(--mono);cursor:pointer" title="Clear all records and re-import">🗑 Clear</button>
+            
             <label class="upload-btn" style="cursor:pointer">
               ↑ Upload CSV
               <input type="file" accept=".csv" onchange="handleAssetCSV(this)"/>
@@ -990,7 +990,7 @@ nav{flex:1;padding:12px 10px;display:flex;flex-direction:column;gap:2px}
       </div>
 
       <div style="display:flex;gap:8px;margin-top:10px;justify-content:flex-end">
-        <button onclick="clearAssetForm()" class="am-btn am-btn-ghost">Clear</button>
+        
         <input type="hidden" id="fEditId"/>
         <button onclick="saveAssetRecord()" class="am-btn am-btn-primary" id="fSaveBtn">Save Record</button>
       </div>
@@ -1821,23 +1821,19 @@ var MYKARE_CONTENT = `
 </div>`;
 
 /* ── TO-DO ── */
-var TODOS = (function(){
-  try{var s=localStorage.getItem('mk_todos');return s?JSON.parse(s):[];}catch(e){return [];}
-}());
-function saveTodos(){
-  try{localStorage.setItem('mk_todos',JSON.stringify(TODOS));}catch(e){}
-}
+var TODOS = JSON.parse(localStorage.getItem('mykare_todos') || '[]');
+function saveTodos(){ localStorage.setItem('mykare_todos', JSON.stringify(TODOS)); }
 function addTodo(){
   var inp = document.getElementById('todoInput');
   var text = inp.value.trim();
   if(!text) return;
   TODOS.push({id: Date.now(), text: text, done: false});
-  inp.value = '';
   saveTodos();
+  inp.value = '';
   renderTodos();
 }
 function toggleTodo(id){
-  TODOS = TODOS.map(function(t){ return t.id===id ? {...t, done:!t.done} : t; });
+  TODOS = TODOS.map(function(t){ return t.id===id ? Object.assign({},t,{done:!t.done}) : t; });
   saveTodos();
   renderTodos();
 }
@@ -1872,12 +1868,33 @@ function renderTodos(){
 }
 
 /* ── FORMS SYNC ── */
-var FORMS_SHEET_URL = (function(){try{return localStorage.getItem('mk_sheet_url')||'https://docs.google.com/spreadsheets/d/e/2PACX-1vSgHUzuTWZL8f3jiD9YlipKVot_ynJ8FoU8au2DmmBjfJe_ALdRT6lsTlKAIeJcLuM40ShnpgBm3Bkf/pub?output=csv';}catch(e){return 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSgHUzuTWZL8f3jiD9YlipKVot_ynJ8FoU8au2DmmBjfJe_ALdRT6lsTlKAIeJcLuM40ShnpgBm3Bkf/pub?output=csv';}}());
+var FORMS_SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQzMjAd95woak7v5koA-V00YeSyLCZ7X1EE6y2EwQY71uZq9qU_e3ioZAJkLQCmHTYCMS3zCLFUWG2Z/pub?output=csv'}catch(e){return 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSgHUzuTWZL8f3jiD9YlipKVot_ynJ8FoU8au2DmmBjfJe_ALdRT6lsTlKAIeJcLuM40ShnpgBm3Bkf/pub?output=csv';}}());
 var FORMS_URL = '';
 
 function syncFromForms(){
-  var url = FORMS_SHEET_URL || (document.getElementById('formsSheetUrl') && document.getElementById('formsSheetUrl').value) || '';
-  url = url.trim();
+  // Try Apps Script first (has all columns), fallback to CSV
+  var appsUrl = "https://script.google.com/macros/s/AKfycbz8ApVIrF8uUtqGDV-ND7f6yes05lZGkU7XMXH2MEdE8oKW-xA_wx_669i-sWb4lmIE/exec";
+  fetch(appsUrl)
+    .then(function(r){ return r.text(); })
+    .then(function(txt){
+      var trimmed = txt.trim();
+      if(trimmed.charAt(0)==='{'){
+        var json = JSON.parse(trimmed);
+        var data = (json.data||[]).filter(function(r){
+          return (r['Employee Name']||'').trim().length > 1;
+        });
+        if(data.length > 0){
+          ALL_ASSETS = data;
+          saveAssetsLS();
+          renderAssetZone();
+          updateSyncChip('LIVE SYNC');
+          return;
+        }
+      }
+    })
+    .catch(function(){});
+  // Also try CSV fallback
+  var url = FORMS_SHEET_URL;
   if(!url) return;
   // Convert /pub?output=csv or edit URL to proper CSV export
   var csvUrl = url;
@@ -2010,7 +2027,6 @@ function filterAttTable(){
   setInterval(syncFromForms, 5 * 60 * 1000);
   // Seed one empty asset field in form
   addAssetField();
-  // Restore persisted todos
   renderTodos();
 })();
 </script>
